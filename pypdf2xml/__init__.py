@@ -227,12 +227,12 @@ def pdf2xml(fileobj, image_handler=None):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print """usage:
+        print("""usage:
     to see the output:
     \tpdf2xml file.pdf
     to write output to file:
     \tpdf2xml file.pdf > outfile.xml
-    """
+    """)
     else:
         pdf2xml(open(sys.argv[1], 'rb'), image_handler=None)
 
