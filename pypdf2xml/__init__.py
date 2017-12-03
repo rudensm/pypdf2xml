@@ -52,7 +52,7 @@ def parse_page_xml(fileobj):
         pages.append((pagenum, ordered))
     return pages
 
-def with_pdf (pdf_doc, pdf_pwd, fn, *args):
+def with_pdf (pdf_doc, fn, *args, **kwargs):
     """Open the pdf document, and apply the function, returning the results"""
     result = None
     try:
@@ -72,7 +72,7 @@ def with_pdf (pdf_doc, pdf_pwd, fn, *args):
 
         if doc.is_extractable:
             # apply the function and return the result
-            result = fn(doc, *args)
+            result = fn(doc, *args, **kwargs)
 
         # close the pdf file
         fp.close()
@@ -98,7 +98,7 @@ def get_toc (pdf_doc, pdf_pwd=''):
     """Return the table of contents (toc), if any, for this pdf file"""
     return with_pdf(pdf_doc, pdf_pwd, _parse_toc)
 
-def _parse_pages (doc, image_handler):
+def _parse_pages (doc, *args, **kwargs):
     """With an open PDFDocument object, get the pages, parse each one, and return the entire text
     [this is a higher-order function to be passed to with_pdf()]"""
     rsrcmgr = PDFResourceManager()
@@ -115,18 +115,20 @@ def _parse_pages (doc, image_handler):
         layout = device.get_result()
         page_height = int(layout.bbox[3])
         # layout is an LTPage object which may contain child objects like LTTextBox, LTFigure, LTImage, etc.
-        ret = parse_lt_objs(layout._objs, (i+1), image_handler, page_height)
+        ret = parse_lt_objs(layout._objs, (i+1), page_height)
         text_content.append(ret)
         text_content.append('</page>')
+        if "last_page" in kwargs.keys() and i == kwargs["last_page"]:
+            return text_content
 
     text_content.append('</pdf2xml>')
     return text_content
 
-def get_pages (pdf_doc, pdf_pwd='', image_handler=None):
+def get_pages (pdf_doc, last_page):
     """Process each of the pages in this pdf file and print the entire text to stdout"""
-    return with_pdf(pdf_doc, pdf_pwd, _parse_pages, *tuple([image_handler]))
+    return with_pdf(pdf_doc, _parse_pages, last_page=last_page)
 
-def parse_lt_objs (lt_objs, page_number, image_handler, page_height, text=[]):
+def parse_lt_objs (lt_objs, page_number, page_height, text=[]):
     """Iterate through the list of LT* objects and capture the text or image data contained in each"""
     text_content = []
 
@@ -135,16 +137,7 @@ def parse_lt_objs (lt_objs, page_number, image_handler, page_height, text=[]):
         if isinstance(lt_obj, LTTextBox) or isinstance(lt_obj, LTTextLine):
             # text, so arrange is logically based on its column width
             update_page_text_hash(page_text, lt_obj)
-        elif isinstance(lt_obj, LTImage):
-            # an image, so save it to the designated folder, and note it's place in the text
-            saved_file = save_image(lt_obj, page_number, image_handler)
-            if saved_file:
-                # use html style <img /> tag to mark the position of the image within the text
-                text_content.append('<img src="'+ saved_file +'" />')
-        elif isinstance(lt_obj, LTFigure):
-            # LTFigure objects are containers for other LT* objects, so recurse through the children
-            text_content.append(parse_lt_objs(lt_obj._objs, page_number, image_handler, page_height, text_content))
-
+        
     page_text_items = [(k[0], k[1], k, v) for k,v in page_text.items()]
 
     page_text_items = list(sorted(sorted(page_text_items, key=itemgetter(0)), key=itemgetter(1), reverse=True))
@@ -218,11 +211,11 @@ def write_file (folder, filename, filedata, flags='w'):
             pass
     return result
 
-def pdf2xml_pages(fileobj, image_handler=None):
-    return get_pages(fileobj, image_handler=image_handler)
+def pdf2xml_pages(fileobj, last_page):
+    return get_pages(fileobj, last_page=last_page)
 
-def pdf2xml(fileobj, image_handler=None):
-    return '\n'.join(pdf2xml_pages(fileobj, image_handler=image_handler))
+def pdf2xml(fileobj, last_page=None):
+    return '\n'.join(pdf2xml_pages(fileobj, last_page=last_page))
 
 
 if __name__ == "__main__":
