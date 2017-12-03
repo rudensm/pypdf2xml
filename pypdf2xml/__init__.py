@@ -119,7 +119,7 @@ def _parse_pages (doc, *args, **kwargs):
         text_content.append(ret)
         text_content.append('</page>')
         if "last_page" in kwargs.keys() and i == kwargs["last_page"]:
-            return text_content
+            break
 
     text_content.append('</pdf2xml>')
     return text_content
